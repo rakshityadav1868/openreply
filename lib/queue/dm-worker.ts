@@ -434,16 +434,17 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       continue;
     }
 
-    // One DM per person per campaign. Instagram's own dedup is per COMMENT, so
-    // someone who leaves three comments on the same reel would otherwise get
-    // three identical DMs. Skip the DM leg once this campaign has already
-    // delivered to this commenter. The follow-gate button tap runs on a
+    // One DM per person per campaign, ever. Instagram's own dedup is per
+    // COMMENT, so someone who leaves three comments on the same reel would
+    // otherwise get three identical DMs. Any prior log row for this commenter
+    // counts, not just a delivered one: a person whose first attempt failed has
+    // already been reached out to once, and retrying on their next comment is
+    // the spam this guard exists to prevent. The follow-gate button tap runs on a
     // separate path (reveal:*) and is unaffected.
     const alreadyDmdThisPerson = await prisma.dmLog.findFirst({
       where: {
         automationId: automation.id,
         commenterId,
-        status: "SENT",
         commentId: { not: commentId },
       },
       select: { id: true },
@@ -457,7 +458,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           status: "SKIPPED_DEDUP",
           matchedKeyword: matchResult.matchedKeyword,
           errorMessage:
-            "This campaign already sent a DM to this person on an earlier comment",
+            "This campaign already handled this person on an earlier comment",
         },
       });
       continue;

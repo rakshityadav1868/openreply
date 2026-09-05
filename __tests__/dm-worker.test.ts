@@ -215,13 +215,20 @@ beforeEach(() => {
   mockPrisma.automation.findFirst.mockResolvedValue(null);
   mockPrisma.dmLog.findUnique.mockResolvedValue(null);
   mockPrisma.dmLog.create.mockResolvedValue({});
-  // Two different lookups share findFirst: the cross-campaign private-reply
-  // check (keyed on status SENT) and the postback's name lookup. Only the
-  // latter should resolve by default, or every comment would look like a
-  // duplicate of an already-answered one.
+  // Three different lookups share findFirst: the cross-campaign private-reply
+  // check (keyed on status SENT), the once-per-person guard (keyed on a
+  // commentId "not" filter), and the postback's name lookup. Only the last
+  // should resolve by default, or every comment would look like a duplicate of
+  // an already-answered one.
   mockPrisma.dmLog.findFirst.mockImplementation(
-    async (args: { where?: { status?: string } } = {}) =>
-      args.where?.status === "SENT" ? null : { commenterName: "commenter_user" }
+    async (
+      args: { where?: { status?: string; commentId?: unknown } } = {}
+    ) =>
+      args.where?.status === "SENT" ||
+      (args.where?.commentId !== undefined &&
+        typeof args.where.commentId === "object")
+        ? null
+        : { commenterName: "commenter_user" }
   );
   mockPrisma.dmLog.upsert.mockResolvedValue({});
   mockPrisma.dmLog.update.mockResolvedValue({});
