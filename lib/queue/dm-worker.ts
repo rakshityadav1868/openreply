@@ -255,14 +255,22 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     });
 
     const alreadyDmd = existingLog?.status === "SENT";
+    // A recorded failure means Meta was already called for this comment once.
+    // Instagram often delivers the private reply and returns an error anyway,
+    // so re-sending on a later pass hands the person a second copy of the same
+    // message. Treat a spent attempt as spent.
+    const alreadyAttempted = existingLog?.status === "FAILED";
     const alreadyPublicReplied = Boolean(existingLog?.publicReplySentAt);
-    const needsDm = !alreadyDmd;
+    const needsDm = !alreadyDmd && !alreadyAttempted;
 
     // Skip only when there is genuinely nothing left to do. A comment whose DM
     // already sent but whose public reply never posted (e.g. it hit a rate
     // limit) must still come back so the public reply can be retried.
     if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
-    if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
+    if (
+      (alreadyDmd || alreadyAttempted) &&
+      (alreadyPublicReplied || !automation.publicReplyEnabled)
+    ) {
       continue;
     }
 

@@ -91,7 +91,11 @@ export function getDMQueue(): Queue<DmQueueJob> {
         // failure (e.g. an Instagram rate-limit window) has passed. Failure
         // detail is still preserved in DmLog.
         removeOnFail: { age: 300, count: 2000 },
-        attempts: 3,
+        // No retries. Instagram frequently delivers a private reply and still
+        // returns an error, so a retry sends the person a second copy of the
+        // same DM. One attempt per comment is the only way to guarantee one
+        // message per person.
+        attempts: 1,
         backoff: {
           type: "custom",
         },

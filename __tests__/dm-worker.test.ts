@@ -313,6 +313,21 @@ describe("DM Worker — comments left on an ad", () => {
 });
 
 describe("DM Worker — Full Pipeline", () => {
+  it("should not re-send when this comment already has a failed attempt", async () => {
+    // Instagram often delivers the private reply and returns an error anyway,
+    // so a retry of the same comment hands the person a second copy. One call
+    // to Meta per comment, whatever it answered.
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      status: "FAILED",
+      publicReplySentAt: null,
+    });
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+  });
+
   it("should not DM a person this campaign already handled on another comment", async () => {
     // The once-per-person guard. Any earlier log row for this commenter counts,
     // delivered or failed: they have already been messaged once, and answering
