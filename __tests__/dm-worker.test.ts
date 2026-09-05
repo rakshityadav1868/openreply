@@ -313,6 +313,38 @@ describe("DM Worker — comments left on an ad", () => {
 });
 
 describe("DM Worker — Full Pipeline", () => {
+  it("should not DM a person this campaign already handled on another comment", async () => {
+    // The once-per-person guard. Any earlier log row for this commenter counts,
+    // delivered or failed: they have already been messaged once, and answering
+    // their next comment as well is the duplicate this guard exists to stop.
+    mockPrisma.dmLog.findFirst.mockImplementation(
+      async (
+        args: { where?: { status?: string; commentId?: unknown } } = {}
+      ) => {
+        // cross-campaign private-reply check: no other campaign replied
+        if (args.where?.status === "SENT") return null;
+        // once-per-person check: this commenter has an earlier row
+        if (
+          args.where?.commentId !== undefined &&
+          typeof args.where.commentId === "object"
+        ) {
+          return { id: "earlier_log_for_this_person" };
+        }
+        return { commenterName: "commenter_user" };
+      }
+    );
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SKIPPED_DEDUP" }),
+      })
+    );
+  });
+
   it("should send a private reply for a matching comment", async () => {
     const processor = getProcessor();
 
